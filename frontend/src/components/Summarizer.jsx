@@ -1,10 +1,11 @@
 import { useState } from 'react';
 
 const Summarizer = ({ onSubmit }) => {
-  const [inputType, setInputType] = useState('file'); // default option
+  const [inputType, setInputType] = useState('file');
   const [file, setFile] = useState(null);
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
+  const [webpageUrl, setWebpageUrl] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -15,6 +16,8 @@ const Summarizer = ({ onSubmit }) => {
       onSubmit({ pdfUrl: url.trim() });
     } else if (inputType === 'text' && text.trim()) {
       onSubmit({ text: text.trim() });
+    } else if (inputType === 'webpageUrl' && webpageUrl.trim()) {
+      onSubmit({ webpageUrl: webpageUrl.trim() });
     } else {
       alert('Please fill in the required input.');
     }
@@ -33,11 +36,13 @@ const Summarizer = ({ onSubmit }) => {
             setFile(null);
             setUrl('');
             setText('');
+            setWebpageUrl('');
           }}
         >
           <option value="file">Upload PDF File</option>
           <option value="url">PDF URL</option>
           <option value="text">Plain Text</option>
+          <option value="webpageUrl">Webpage URL</option>
         </select>
       </label>
 
@@ -74,6 +79,19 @@ const Summarizer = ({ onSubmit }) => {
             rows="6"
             value={text}
             onChange={(e) => setText(e.target.value)}
+            required
+          />
+        </label>
+      )}
+
+      {inputType === 'webpageUrl' && (
+        <label>
+          Enter Webpage URL:
+          <input
+            type="url"
+            placeholder="https://example.com/article"
+            value={webpageUrl}
+            onChange={(e) => setWebpageUrl(e.target.value)}
             required
           />
         </label>
