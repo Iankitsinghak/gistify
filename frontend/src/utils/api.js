@@ -1,30 +1,29 @@
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5000';
+// src/utils/api.js
+export const summarize = async ({ file, pdfUrl, text, webpageUrl }) => {
+  const formData = new FormData();
 
-export const summarize = async ({ text, pdfUrl, file }) => {
-  try {
-    let response;
-
-    if (file) {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      response = await fetch(`${BACKEND_URL}/summarize`, {
-        method: 'POST',
-        body: formData,
-      });
-    } else {
-      const body = pdfUrl ? { pdfUrl } : { text };
-
-      response = await fetch(`${BACKEND_URL}/summarize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('API Error:', error);
-    return { error: error.message };
+  if (file) {
+    formData.append('file', file);
+    const res = await fetch('http://localhost:5000/summarize', {
+      method: 'POST',
+      body: formData,
+    });
+    return await res.json();
   }
+
+  const body = pdfUrl
+    ? { pdfUrl }
+    : text
+    ? { text }
+    : { webpageUrl };
+
+  const res = await fetch('http://localhost:5000/summarize', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  return await res.json();
 };
