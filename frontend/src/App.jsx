@@ -10,10 +10,11 @@ function App() {
   const [error, setError] = useState(null);
 
   const handleSummarize = async ({ text, pdfUrl, file }) => {
-    try {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
+    setSummary(null); // clear previous summary on new request
 
+    try {
       const data = await summarize({ text, pdfUrl, file });
 
       if (data.error) {
@@ -31,9 +32,12 @@ function App() {
   return (
     <div className="app">
       <h1>PDF/Text Summarizer</h1>
-      <Summarizer onResult={handleSummarize} />
+      <Summarizer onSubmit={handleSummarize} />
+
       {loading && <p>⏳ Summarizing...</p>}
+
       {error && <p className="error">⚠️ {error}</p>}
+
       {summary && <Result data={summary} />}
     </div>
   );
