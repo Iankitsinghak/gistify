@@ -9,18 +9,13 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const handleSummarize = async ({ text, pdfUrl, file }) => {
-    setLoading(true);
-    setError(null);
-    setSummary(null); // clear previous summary on new request
-
+  const handleSummarize = async (input) => {
     try {
-      const data = await summarize({ text, pdfUrl, file });
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
+      setLoading(true);
+      setError(null);
+      setSummary(null);
+      const data = await summarize(input);
+      if (data.error) throw new Error(data.error);
       setSummary(data);
     } catch (err) {
       setError(err.message || 'Something went wrong');
@@ -30,14 +25,11 @@ function App() {
   };
 
   return (
-    <div className="app">
-      <h1>PDF/Text Summarizer</h1>
+    <div className="app-container">
+      <h1 className="app-title">Smart Summarizer</h1>
       <Summarizer onSubmit={handleSummarize} />
-
-      {loading && <p>⏳ Summarizing...</p>}
-
+      {loading && <p className="loading">⏳ Summarizing...</p>}
       {error && <p className="error">⚠️ {error}</p>}
-
       {summary && <Result data={summary} />}
     </div>
   );
