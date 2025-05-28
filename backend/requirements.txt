@@ -5,7 +5,4 @@ fpdf
 PyMuPDF
 httpx
 beautifulsoup4
-werkzeug
-flask-asgi
-uvicorn
-
+gunicorn
