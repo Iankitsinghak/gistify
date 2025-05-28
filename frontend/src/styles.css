@@ -1,40 +1,58 @@
-.summarizer-form {
-  max-width: 600px;
+.app-container {
+  max-width: 800px;
   margin: 2rem auto;
   padding: 1.5rem;
-  background: #1c1c1e;
+  background: #1e1e2f;
+  color: #fff;
+  font-family: 'Segoe UI', sans-serif;
   border-radius: 12px;
-  color: #fff;
-  font-family: sans-serif;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
 }
 
-.summarizer-form label {
-  display: block;
-  margin-bottom: 1rem;
+.app-title {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
 }
 
-.summarizer-form input,
-.summarizer-form textarea,
-.summarizer-form select {
-  width: 100%;
-  padding: 0.7rem;
+.status-area {
+  margin-top: 1rem;
+  text-align: center;
+}
+
+.error {
+  color: #f87171;
+  background: #3b0d0c;
+  padding: 0.5rem;
   border-radius: 6px;
-  border: none;
-  margin-top: 0.5rem;
-  background: #2c2c2e;
-  color: #fff;
+  margin-top: 1rem;
 }
 
-.summarize-btn {
-  padding: 0.8rem 1.5rem;
-  font-size: 1rem;
-  background-color: #4f46e5;
-  color: white;
-  border: none;
+.result-box {
+  margin-top: 2rem;
+  background: #2d2d40;
+  padding: 1.5rem;
+  border-radius: 10px;
+}
+
+.result-box h2, .result-box h3 {
+  margin-bottom: 0.75rem;
+}
+
+.summary-text, .keywords {
+  margin-top: 1rem;
+}
+
+.keywords ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding-left: 0;
+}
+
+.keywords li {
+  background: #4f46e5;
+  padding: 0.4rem 0.8rem;
   border-radius: 8px;
-  cursor: pointer;
-}
-
-.summarize-btn:hover {
-  background-color: #4338ca;
 }
