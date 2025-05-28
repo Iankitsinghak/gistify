@@ -1,37 +1,56 @@
-import ReactMarkdown from 'react-markdown';
-
 const Result = ({ data }) => {
+  if (!data || !data.summary) return null;
+
+  const speak = () => {
+    const synth = window.speechSynthesis;
+    const utter = new SpeechSynthesisUtterance(data.summary);
+    synth.speak(utter);
+  };
+
+  const download = async (type) => {
+    const res = await fetch(`http://localhost:5000/download/${type}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: data.summary }),
+    });
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `summary.${type}`;
+    a.click();
+  };
+
+  const highlightedHTML = data.highlighted.replace(/\*(.*?)\*/g, '<mark>$1</mark>');
+
   return (
     <div className="result-container">
       <h2>Summarization Result</h2>
-      {/* Use ReactMarkdown to render the summary with Markdown formatting */}
-      <div className="summary-text">
-        <ReactMarkdown>{data.summary}</ReactMarkdown>
+
+      <div
+        className="summary-text"
+        dangerouslySetInnerHTML={{ __html: highlightedHTML }}
+      />
+
+      <div className="keywords">
+        <strong>Keywords:</strong> {data.keywords.join(', ')}
       </div>
+
       <div className="stats">
-        <p>Original length: {data.original_length} characters</p>
-        <p>Summary length: {data.summary_length} characters</p>
-        <p>Reduction: {Math.round((1 - data.summary_length/data.original_length)*100)}%</p>
+        <p>Original length: {data.original_length || '—'} characters</p>
+        <p>Summary length: {data.summary.length} characters</p>
+        {data.original_length && (
+          <p>Reduction: {Math.round((1 - data.summary.length / data.original_length) * 100)}%</p>
+        )}
+      </div>
+
+      <div className="actions">
+        <button onClick={speak}>🔊 Speak</button>
+        <button onClick={() => download('txt')}>⬇️ TXT</button>
+        <button onClick={() => download('pdf')}>⬇️ PDF</button>
       </div>
     </div>
   );
 };
 
 export default Result;
-
-const styles = {
-  resultContainer: {
-    backgroundColor: '#f5f5f5',
-    padding: '20px',
-    borderRadius: '5px',
-    marginBottom: '20px',
-  },
-  summaryText: {
-    fontSize: '18px',
-    marginBottom: '10px',
-  },
-  stats: {
-    fontSize: '14px',
-    color: '#999',
-  }
-}
