@@ -16,14 +16,16 @@ import asyncio
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path)
 
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if not GEMINI_API_KEY:
+    raise RuntimeError("GEMINI_API_KEY is not set in the environment.")
+
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # You can customize CORS in production
 
 # Configuration
 app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB max file size
-
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # --- Helpers ---
 def allowed_file(filename):
@@ -56,12 +58,15 @@ def convert_text_to_pdf(text, path):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font("Arial", size=12)
+    try:
+        pdf.set_font("Arial", size=12)
+    except:
+        pdf.set_font("Helvetica", size=12)
     for line in text.split("\n"):
         pdf.multi_cell(0, 10, line)
     pdf.output(path)
 
-# --- Async Wrappers ---
+# --- Async Helpers ---
 def get_event_loop():
     try:
         return asyncio.get_running_loop()
@@ -86,15 +91,18 @@ async def generate_summary_with_gemini(prompt):
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
     headers = {"Content-Type": "application/json"}
     params = {"key": GEMINI_API_KEY}
-    data = { "contents": [{ "parts": [{ "text": prompt }] }] }
+    data = {"contents": [{"parts": [{"text": prompt[:10000]}]}]}  # Optional truncation
 
     async with httpx.AsyncClient() as client:
-        res = await client.post(url, headers=headers, params=params, json=data)
-        if res.status_code == 200:
-            res_json = res.json()
-            if "candidates" in res_json and res_json["candidates"]:
-                return res_json["candidates"][0]["content"]["parts"][0]["text"]
-        return "Error: Failed to generate summary"
+        try:
+            res = await client.post(url, headers=headers, params=params, json=data)
+            if res.status_code == 200:
+                res_json = res.json()
+                if "candidates" in res_json and res_json["candidates"]:
+                    return res_json["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception as e:
+            return f"Error contacting Gemini API: {str(e)}"
+    return "Error: Failed to generate summary"
 
 # --- Routes ---
 @app.route('/summarize', methods=['POST'])
@@ -122,7 +130,9 @@ def summarize():
         return jsonify({
             "summary": summary,
             "highlighted": highlighted,
-            "keywords": keywords
+            "keywords": keywords,
+            "original_length": len(text_data),
+            "summary_length": len(summary)
         })
 
     return jsonify({"error": "No valid input provided"}), 400
