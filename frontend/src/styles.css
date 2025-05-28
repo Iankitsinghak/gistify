@@ -1,72 +1,40 @@
-body {
-  font-family: Arial, sans-serif;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-  line-height: 1.6;
-}
-
-.app {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
 .summarizer-form {
-  display: flex;
-  gap: 10px;
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background: #1c1c1e;
+  border-radius: 12px;
+  color: #fff;
+  font-family: sans-serif;
 }
 
-.summarizer-form input {
-  flex: 1;
-  padding: 10px;
-  font-size: 16px;
+.summarizer-form label {
+  display: block;
+  margin-bottom: 1rem;
 }
 
-.summarizer-form button {
-  padding: 10px 20px;
-  background: #0070f3;
+.summarizer-form input,
+.summarizer-form textarea,
+.summarizer-form select {
+  width: 100%;
+  padding: 0.7rem;
+  border-radius: 6px;
+  border: none;
+  margin-top: 0.5rem;
+  background: #2c2c2e;
+  color: #fff;
+}
+
+.summarize-btn {
+  padding: 0.8rem 1.5rem;
+  font-size: 1rem;
+  background-color: #4f46e5;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
 }
 
-.result-container {
-  background-color: #333; /* Dark grey background */
-  color: #f0f0f0; /* Off-white text color for the container */
-  padding: 30px; /* Increased padding */
-  border-radius: 10px; /* Softer corners */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Subtle shadow */
-  /* Adding a subtle noise texture for paper feel */
-  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAEAQMAAAAmVc54AAAABlBMVEUAAAD///+l2Z/dAAAAAXRSTlMAQObYZgAAABRJREFUCNdjQAH+f4b/BwMAgAEAD/8E/z8AAAAASUVORK5CYII=');
-  background-repeat: repeat;
-}
-
-.result-container mark {
-  background: yellow;
-  font-weight: bold;
-  padding: 0 2px;
-}
-
-.actions button {
-  margin: 8px;
-}
-
-.summary-text {
-  white-space: pre-line;
-  color: #f0f0f0; /* Off-white text color for the summary */
-  font-size: 18px;
-  line-height: 1.8; /* Improved line spacing for readability */
-  margin-bottom: 20px; /* Increased space below summary */
-}
-
-.stats {
-  margin-top: 20px;
-  font-size: 14px;
-  color: #ccc; /* Lighter color for stats on dark background */
-}
-
-.error {
-  color: #ff6666; /* Adjusted error color for dark background */
+.summarize-btn:hover {
+  background-color: #4338ca;
 }
