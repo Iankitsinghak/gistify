@@ -4,3 +4,5 @@ python-dotenv
 beautifulsoup4
 httpx
 flask[async]
+fpdf
+PyMuPDF
