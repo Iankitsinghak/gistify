@@ -11,6 +11,10 @@ from bs4 import BeautifulSoup
 from werkzeug.utils import secure_filename
 import httpx
 import asyncio
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 
 # Load environment variables
 env_path = Path('.') / '.env'
@@ -37,6 +41,16 @@ def extract_text_from_pdf(file_path):
         for page in doc:
             text += page.get_text()
     return text.strip()
+
+def extract_text_from_webpage(url):
+    try:
+        res = httpx.get(url, timeout=10)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        for tag in soup(['script', 'style']):
+            tag.decompose()
+        return soup.get_text(separator='\n').strip()
+    except Exception as e:
+        return ""
 
 def highlight_keywords(text, keywords):
     for word in keywords:
@@ -91,15 +105,19 @@ async def generate_summary_with_gemini(prompt):
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
     headers = {"Content-Type": "application/json"}
     params = {"key": GEMINI_API_KEY}
-    data = {"contents": [{"parts": [{"text": prompt[:10000]}]}]}  # Optional truncation
+    data = {"contents": [{"parts": [{"text": prompt[:10000]}]}]}
 
     async with httpx.AsyncClient() as client:
         try:
             res = await client.post(url, headers=headers, params=params, json=data)
             if res.status_code == 200:
                 res_json = res.json()
-                if "candidates" in res_json and res_json["candidates"]:
+                try:
                     return res_json["candidates"][0]["content"]["parts"][0]["text"]
+                except (KeyError, IndexError):
+                    return "Error: Unexpected Gemini API response format"
+            else:
+                return f"Error: Gemini API returned status {res.status_code}"
         except Exception as e:
             return f"Error contacting Gemini API: {str(e)}"
     return "Error: Failed to generate summary"
@@ -112,7 +130,8 @@ def summarize():
     if "file" in request.files:
         file = request.files["file"]
         if file and allowed_file(file.filename):
-            file_path = os.path.join(app.config["UPLOAD_FOLDER"], secure_filename(file.filename))
+            filename = secure_filename(file.filename)
+            file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             file.save(file_path)
             text_data = extract_text_from_pdf(file_path)
 
@@ -122,6 +141,8 @@ def summarize():
             text_data = run_async(fetch_pdf_text_from_url(data["pdfUrl"]))
         elif "text" in data:
             text_data = data["text"]
+        elif "webpageUrl" in data:
+            text_data = extract_text_from_webpage(data["webpageUrl"])
 
     if text_data:
         summary = run_async(generate_summary_with_gemini(text_data))
@@ -141,14 +162,14 @@ def summarize():
 def download_txt():
     text = request.json.get("text", "")
     path = save_temp_file("summary.txt", text)
-    return send_file(path, as_attachment=True)
+    return send_file(path, as_attachment=True, mimetype='text/plain')
 
 @app.route("/download/pdf", methods=["POST"])
 def download_pdf():
     text = request.json.get("text", "")
     path = os.path.join(tempfile.gettempdir(), "summary.pdf")
     convert_text_to_pdf(text, path)
-    return send_file(path, as_attachment=True)
+    return send_file(path, as_attachment=True, mimetype='application/pdf')
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
