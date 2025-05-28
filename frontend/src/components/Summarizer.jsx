@@ -1,30 +1,35 @@
+// src/components/Summarizer.jsx
 import { useState } from 'react';
 
 const Summarizer = ({ onSubmit }) => {
-  const [inputType, setInputType] = useState('file');
+  const [inputType, setInputType] = useState('file'); // default option
   const [file, setFile] = useState(null);
   const [url, setUrl] = useState('');
   const [text, setText] = useState('');
+  const [webpageUrl, setWebpageUrl] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
     if (inputType === 'file' && file) {
       onSubmit({ file });
     } else if (inputType === 'url' && url.trim()) {
       onSubmit({ pdfUrl: url.trim() });
     } else if (inputType === 'text' && text.trim()) {
       onSubmit({ text: text.trim() });
-    } else if (inputType === 'webpage' && url.trim()) {
-      onSubmit({ webpageUrl: url.trim() });
+    } else if (inputType === 'webpage' && webpageUrl.trim()) {
+      onSubmit({ webpageUrl: webpageUrl.trim() });
     } else {
       alert('Please fill in the required input.');
     }
   };
 
   return (
-    <form className="form-container" onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit} className="summarizer-form">
+      <h2>PDF/Text/Webpage Summarizer</h2>
+
       <label>
-        <strong>Input Type:</strong>
+        Select input type:
         <select
           value={inputType}
           onChange={(e) => {
@@ -32,12 +37,14 @@ const Summarizer = ({ onSubmit }) => {
             setFile(null);
             setUrl('');
             setText('');
+            setWebpageUrl('');
           }}
+          className="input-select"
         >
           <option value="file">Upload PDF File</option>
           <option value="url">PDF URL</option>
-          <option value="webpage">Webpage URL</option>
           <option value="text">Plain Text</option>
+          <option value="webpage">Webpage URL</option>
         </select>
       </label>
 
@@ -53,9 +60,9 @@ const Summarizer = ({ onSubmit }) => {
         </label>
       )}
 
-      {(inputType === 'url' || inputType === 'webpage') && (
+      {inputType === 'url' && (
         <label>
-          Enter URL:
+          Enter PDF URL:
           <input
             type="url"
             placeholder="https://example.com/file.pdf"
@@ -70,8 +77,8 @@ const Summarizer = ({ onSubmit }) => {
         <label>
           Enter Text:
           <textarea
-            rows="6"
-            placeholder="Paste or type your text here..."
+            placeholder="Paste your content here..."
+            rows="8"
             value={text}
             onChange={(e) => setText(e.target.value)}
             required
@@ -79,7 +86,20 @@ const Summarizer = ({ onSubmit }) => {
         </label>
       )}
 
-      <button className="summarize-btn" type="submit">
+      {inputType === 'webpage' && (
+        <label>
+          Enter Webpage URL:
+          <input
+            type="url"
+            placeholder="https://example.com/article"
+            value={webpageUrl}
+            onChange={(e) => setWebpageUrl(e.target.value)}
+            required
+          />
+        </label>
+      )}
+
+      <button type="submit" className="summarize-btn">
         Summarize
       </button>
     </form>
