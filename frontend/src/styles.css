@@ -43,6 +43,16 @@ body {
   background-repeat: repeat;
 }
 
+.result-container mark {
+  background: yellow;
+  font-weight: bold;
+  padding: 0 2px;
+}
+
+.actions button {
+  margin: 8px;
+}
+
 .summary-text {
   white-space: pre-line;
   color: #f0f0f0; /* Off-white text color for the summary */
