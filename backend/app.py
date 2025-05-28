@@ -1,154 +1,120 @@
+# top-level imports
 import os
+import re
+import fitz  # PyMuPDF
+import tempfile
+from fpdf import FPDF
+from flask import Flask, request, jsonify, send_file
+from flask_cors import CORS
 from pathlib import Path
-from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
+from werkzeug.utils import secure_filename
 import httpx
-from flask_cors import CORS # Import CORS
-# import requests # We will remove requests as we are using httpx for both
-import asyncio # Import asyncio for sleep
+import asyncio
 
-# Import pathlib to construct the path
-from pathlib import Path
-
-# Define the path to the .env file relative to the current script
-# This assumes your .env file is in the same directory as app.py
+# .env setup
 env_path = Path('.') / '.env'
-
-# Load environment variables from .env file, specifying the path
 load_dotenv(dotenv_path=env_path)
 
 app = Flask(__name__)
-CORS(app) # Enable CORS for all origins
+CORS(app)
 
-# Environment variable for Gemini API key
-# Ensure you set this in your backend/.env file, e.g., GEMINI_API_KEY='your_api_key_here'
-dkey = os.getenv("GEMINI_API_KEY")
+app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+# Helpers
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() == 'pdf'
+
+def extract_text_from_pdf(file_path):
+    text = ""
+    with fitz.open(file_path) as doc:
+        for page in doc:
+            text += page.get_text()
+    return text.strip()
+
+async def extract_text_from_pdf_url(url):
+    async with httpx.AsyncClient() as client:
+        res = await client.get(url)
+        if res.status_code == 200:
+            pdf_path = os.path.join(tempfile.gettempdir(), "from_url.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(res.content)
+            return extract_text_from_pdf(pdf_path)
+    return None
+
+async def generate_summary(prompt):
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+    headers = {"Content-Type": "application/json"}
+    params = {"key": GEMINI_API_KEY}
+    data = { "contents": [{ "parts": [{ "text": prompt }] }] }
+
+    async with httpx.AsyncClient() as client:
+        res = await client.post(url, headers=headers, params=params, json=data)
+        if res.status_code == 200:
+            return res.json()["candidates"][0]["content"]["parts"][0]["text"]
+        return f"Error: {res.text}"
+
+def highlight_keywords(text, keywords):
+    for word in keywords:
+        pattern = re.compile(rf'\b({re.escape(word)})\b', re.IGNORECASE)
+        text = pattern.sub(r'*\1*', text)
+    return text
+
+# Main endpoint
 @app.route('/summarize', methods=['POST'])
-async def summarize(): # Make the route function async
-    data = request.get_json()
-    url = data.get('url')
+async def summarize():
+    text_data, summary = "", ""
+    keywords = []
 
-    if not url:
-        return jsonify({'error': 'URL not provided'}), 400
+    if "file" in request.files:
+        file = request.files["file"]
+        if file and allowed_file(file.filename):
+            file_path = os.path.join(app.config["UPLOAD_FOLDER"], secure_filename(file.filename))
+            file.save(file_path)
+            text_data = extract_text_from_pdf(file_path)
 
-    content = ''
-    attempts = 0
-    max_attempts = 15
-    delay = 2 # seconds
+    elif request.json:
+        data = request.json
+        if "pdfUrl" in data:
+            text_data = await extract_text_from_pdf_url(data["pdfUrl"])
+        elif "text" in data:
+            text_data = data["text"]
 
-    while attempts < max_attempts:
-        attempts += 1
-        print(f"Attempt {attempts} to fetch URL: {url}")
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(url, timeout=10)
-                resp.raise_for_status() # Raise an exception for bad status codes (like 404, 500)
+    if text_data:
+        summary = await generate_summary(text_data)
+        keywords = list(set(re.findall(r'\b\w{6,}\b', summary)))[:10]
+        highlighted = highlight_keywords(summary, keywords)
+        return jsonify({
+            "summary": summary,
+            "highlighted": highlighted,
+            "keywords": keywords
+        })
 
-            print("Response:", resp.text)
+    return jsonify({"error": "No valid input provided"}), 400
 
-            soup = BeautifulSoup(resp.text, 'html.parser')
-            # Attempt to extract content - this is where the error might occur if structure is unexpected
-            extracted_content = ''
-            for tag in ['p', 'h1', 'h2', 'h3', 'article', 'div']:
-                for element in soup.find_all(tag):
-                    extracted_content += element.get_text() + '\n'
+@app.route("/download/txt", methods=["POST"])
+def download_txt():
+    text = request.json.get("text", "")
+    path = os.path.join(tempfile.gettempdir(), "summary.txt")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    return send_file(path, as_attachment=True)
 
-            # If content was successfully extracted, break the loop
-            if extracted_content.strip(): # Check if extracted content is not empty
-                 content = extracted_content
-                 print(f"Successfully fetched content on attempt {attempts}.")
-                 break
-            else:
-                 print(f"No relevant content found on attempt {attempts}. Retrying...")
+@app.route("/download/pdf", methods=["POST"])
+def download_pdf():
+    text = request.json.get("text", "")
+    path = os.path.join(tempfile.gettempdir(), "summary.pdf")
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Arial", size=12)
+    for line in text.split("\n"):
+        pdf.multi_cell(0, 10, line)
+    pdf.output(path)
+    return send_file(path, as_attachment=True)
 
-        except httpx.RequestError as e:
-            print(f"Attempt {attempts} failed: An error occurred while requesting {e.request.url!r}: {e}")
-        except Exception as e:
-            # Catch other potential errors, e.g., during BeautifulSoup parsing
-            print(f"Attempt {attempts} failed: An unexpected error occurred during processing: {e}")
-
-        # Wait before the next attempt, unless it's the last one
-        if attempts < max_attempts:
-            await asyncio.sleep(delay)
-
-    if not content.strip():
-         return jsonify({'error': f'Failed to fetch relevant content after {max_attempts} attempts.'}), 500
-
-    try:
-        # Calculate original content length before cleaning
-        original_length = len(content)
-
-        # Call the Gemini API with the extracted content
-        content = content.strip() # remove leading blank next lines
-        content = content.replace('\n', ' ') # replace new lines with spaces
-        content = content.replace('\r', ' ') # replace carriage returns with spaces
-        content = content.replace('\t', ' ') # replace tabs with spaces
-        content = content.replace('  ', ' ') # replace double spaces with single spaces
-
-        summary = await call_gemini_api(content) # Updated function call
-
-        # Calculate summary length
-        summary_length = len(summary)
-
-        # Include original_length and summary_length in the response
-        return jsonify({'summary': summary, 'original_length': original_length, 'summary_length': summary_length})
-
-    except Exception as e:
-        print(f"An unexpected error occurred during API call: {e}")
-        return jsonify({'error': f'An unexpected error occurred during summarization: {e}'}), 500
-
-
-async def call_gemini_api(content): # Renamed function
-
-    # Gemini API endpoint URL
-    api_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-
-    if not dkey:
-        return "Error summarizing content: Gemini API key not configured."
-    
-    # Gemini API uses key in query parameters, not Authorization header
-    # headers = {
-    #     "Content-Type": "application/json"
-    # }
-
-    # Payload for Gemini API
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {
-                        "text": content # Use the extracted content here
-                    }
-                ]
-            }
-        ]
-    }
-
-    try:
-        async with httpx.AsyncClient() as client:
-            # Pass API key as a query parameter
-            response = await client.post(f"{api_url}?key={dkey}", json=payload, timeout=30) # Use await with httpx.post
-            response.raise_for_status() # Raise an exception for bad status codes
-
-        result = response.json()
-        
-        # Extract summary from Gemini API response structure
-        summary = result.get('candidates', [{}])[0].get('content', {}).get('parts', [{}])[0].get('text', 'No summary returned by API.')
-        
-        return summary
-
-    except httpx.RequestError as e:
-        # Catch specific httpx exceptions for better error handling
-        return f"Error summarizing content: {str(e)}"
-    except Exception as e:
-        # Catch any other potential errors during JSON parsing or processing
-        return f"Error summarizing content: An unexpected error occurred - {str(e)}"
-
-
-if __name__ == '__main__':
-    # In a production environment, you might use a production-ready server like Gunicorn
-    # For local development, app.run() is fine.
-    app.run(debug=True, host='0.0.0.0', port=5000)
-
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
