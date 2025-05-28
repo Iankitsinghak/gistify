@@ -1,27 +1,22 @@
 // src/utils/api.js
-export const summarize = async ({ file, pdfUrl, text, webpageUrl }) => {
-  const formData = new FormData();
+const BASE_URL = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
 
+export const summarize = async ({ file, pdfUrl, text, webpageUrl }) => {
   if (file) {
+    const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch('http://localhost:5000/summarize', {
+    const res = await fetch(`${BASE_URL}/summarize`, {
       method: 'POST',
       body: formData,
     });
     return await res.json();
   }
 
-  const body = pdfUrl
-    ? { pdfUrl }
-    : text
-    ? { text }
-    : { webpageUrl };
+  const body = pdfUrl ? { pdfUrl } : text ? { text } : { webpageUrl };
 
-  const res = await fetch('http://localhost:5000/summarize', {
+  const res = await fetch(`${BASE_URL}/summarize`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 
