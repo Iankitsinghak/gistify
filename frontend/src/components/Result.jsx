@@ -1,16 +1,17 @@
-// src/components/Result.jsx
-const Result = ({ data }) => {
-  return (
-    <div className="result-box">
-      <h2>Summary</h2>
-      <p className="highlighted-text">{data.highlighted}</p>
-      <div className="summary-meta">
-        <p><strong>Original Length:</strong> {data.original_length}</p>
-        <p><strong>Summary Length:</strong> {data.summary_length}</p>
-        <p><strong>Keywords:</strong> {data.keywords.join(', ')}</p>
-      </div>
-    </div>
-  );
-};
+const Result = ({ data }) => (
+  <div className="result-container">
+    <h2>Summary</h2>
+    <p>{data.highlighted}</p>
+    <h4>Keywords:</h4>
+    <ul>
+      {data.keywords.map((word, i) => (
+        <li key={i}>{word}</li>
+      ))}
+    </ul>
+    <p>
+      🔤 Original Length: {data.original_length} | ✂️ Summary Length: {data.summary_length}
+    </p>
+  </div>
+);
 
 export default Result;
