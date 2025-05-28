@@ -2,7 +2,8 @@ import { useState } from 'react';
 import Summarizer from './components/Summarizer';
 import Result from './components/Result';
 import { summarize } from './utils/api';
-import './styles.css';
+import './App.css';
+
 
 function App() {
   const [summary, setSummary] = useState(null);
