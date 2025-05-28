@@ -1,8 +1,7 @@
-﻿flask
+Flask
 flask-cors
 python-dotenv
-beautifulsoup4
-httpx
-flask[async]
 fpdf
 PyMuPDF
+httpx
+beautifulsoup4
