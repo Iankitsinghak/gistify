@@ -25,13 +25,13 @@ if not GEMINI_API_KEY:
     raise RuntimeError("GEMINI_API_KEY is not set in the environment.")
 
 app = Flask(__name__)
-CORS(app)  # You can customize CORS in production
+CORS(app)  # Enable CORS for all routes (adjust for production)
 
-# Configuration
+# Config
 app.config['UPLOAD_FOLDER'] = tempfile.gettempdir()
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB max file size
 
-# --- Helpers ---
+# Helpers
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() == 'pdf'
 
@@ -45,11 +45,13 @@ def extract_text_from_pdf(file_path):
 def extract_text_from_webpage(url):
     try:
         res = httpx.get(url, timeout=10)
+        res.raise_for_status()
         soup = BeautifulSoup(res.text, 'html.parser')
         for tag in soup(['script', 'style']):
             tag.decompose()
         return soup.get_text(separator='\n').strip()
     except Exception as e:
+        logging.error(f"Error extracting webpage text: {e}")
         return ""
 
 def highlight_keywords(text, keywords):
@@ -74,13 +76,13 @@ def convert_text_to_pdf(text, path):
     pdf.set_auto_page_break(auto=True, margin=15)
     try:
         pdf.set_font("Arial", size=12)
-    except:
+    except Exception:
         pdf.set_font("Helvetica", size=12)
     for line in text.split("\n"):
         pdf.multi_cell(0, 10, line)
     pdf.output(path)
 
-# --- Async Helpers ---
+# Async Helpers
 def get_event_loop():
     try:
         return asyncio.get_running_loop()
@@ -89,17 +91,25 @@ def get_event_loop():
 
 def run_async(coro):
     loop = get_event_loop()
-    return loop.run_until_complete(coro)
+    if loop.is_running():
+        # If event loop is running (e.g. in some WSGI servers), create a new one
+        new_loop = asyncio.new_event_loop()
+        return new_loop.run_until_complete(coro)
+    else:
+        return loop.run_until_complete(coro)
 
 async def fetch_pdf_text_from_url(url):
     async with httpx.AsyncClient() as client:
-        res = await client.get(url)
-        if res.status_code == 200:
+        try:
+            res = await client.get(url)
+            res.raise_for_status()
             pdf_path = os.path.join(tempfile.gettempdir(), "from_url.pdf")
             with open(pdf_path, "wb") as f:
                 f.write(res.content)
             return extract_text_from_pdf(pdf_path)
-    return None
+        except Exception as e:
+            logging.error(f"Error fetching PDF from URL: {e}")
+            return ""
 
 async def generate_summary_with_gemini(prompt):
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
@@ -110,22 +120,20 @@ async def generate_summary_with_gemini(prompt):
     async with httpx.AsyncClient() as client:
         try:
             res = await client.post(url, headers=headers, params=params, json=data)
-            if res.status_code == 200:
-                res_json = res.json()
-                try:
-                    return res_json["candidates"][0]["content"]["parts"][0]["text"]
-                except (KeyError, IndexError):
-                    return "Error: Unexpected Gemini API response format"
-            else:
-                return f"Error: Gemini API returned status {res.status_code}"
+            res.raise_for_status()
+            res_json = res.json()
+            try:
+                return res_json["candidates"][0]["content"]["parts"][0]["text"]
+            except (KeyError, IndexError):
+                return "Error: Unexpected Gemini API response format"
         except Exception as e:
+            logging.error(f"Error contacting Gemini API: {e}")
             return f"Error contacting Gemini API: {str(e)}"
-    return "Error: Failed to generate summary"
 
-# --- Routes ---
+# Routes
 @app.route('/summarize', methods=['POST'])
 def summarize():
-    text_data, summary, keywords = "", "", []
+    text_data = ""
 
     if "file" in request.files:
         file = request.files["file"]
@@ -135,8 +143,8 @@ def summarize():
             file.save(file_path)
             text_data = extract_text_from_pdf(file_path)
 
-    elif request.json:
-        data = request.json
+    elif request.is_json:
+        data = request.get_json()
         if "pdfUrl" in data:
             text_data = run_async(fetch_pdf_text_from_url(data["pdfUrl"]))
         elif "text" in data:
@@ -144,32 +152,41 @@ def summarize():
         elif "webpageUrl" in data:
             text_data = extract_text_from_webpage(data["webpageUrl"])
 
-    if text_data:
-        summary = run_async(generate_summary_with_gemini(text_data))
-        keywords = extract_keywords(summary)
-        highlighted = highlight_keywords(summary, keywords)
-        return jsonify({
-            "summary": summary,
-            "highlighted": highlighted,
-            "keywords": keywords,
-            "original_length": len(text_data),
-            "summary_length": len(summary)
-        })
+    if not text_data:
+        return jsonify({"error": "No valid input provided or unable to extract text"}), 400
 
-    return jsonify({"error": "No valid input provided"}), 400
+    summary = run_async(generate_summary_with_gemini(text_data))
+    if summary.startswith("Error"):
+        return jsonify({"error": summary}), 500
+
+    keywords = extract_keywords(summary)
+    highlighted = highlight_keywords(summary, keywords)
+
+    return jsonify({
+        "summary": summary,
+        "highlighted": highlighted,
+        "keywords": keywords,
+        "original_length": len(text_data),
+        "summary_length": len(summary)
+    })
 
 @app.route("/download/txt", methods=["POST"])
 def download_txt():
     text = request.json.get("text", "")
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
     path = save_temp_file("summary.txt", text)
     return send_file(path, as_attachment=True, mimetype='text/plain')
 
 @app.route("/download/pdf", methods=["POST"])
 def download_pdf():
     text = request.json.get("text", "")
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
     path = os.path.join(tempfile.gettempdir(), "summary.pdf")
     convert_text_to_pdf(text, path)
     return send_file(path, as_attachment=True, mimetype='application/pdf')
 
 if __name__ == "__main__":
+    # Use 0.0.0.0 for accessibility on Render/Vercel, port from env var or default 5000
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
