@@ -6,3 +6,4 @@ PyMuPDF
 httpx
 beautifulsoup4
 werkzeug
+
